@@ -1,4 +1,3 @@
-# app.py - Simulador de ETo con Penman-Monteith FAO 56
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
@@ -32,65 +31,57 @@ def eto_penman_monteith(T, RH, u2, Rs, P, albedo):
     eto = (0.408 * delta * (Rn - G) + gamma * (900 / (T + 273)) * u2 * (es - ea)) /           (delta + gamma * (1 + 0.34 * u2))
     return max(0, eto)
 
+st.set_page_config(layout="wide")
 st.title("🌤️ Simulador de Evapotranspiración (ETo) - Penman-Monteith FAO 56")
+st.markdown("Visualiza la variación de la ETo durante el año ajustando variables climáticas realistas.")
+
+st.latex(r"ETo = rac{0.408 \cdot \Delta (R_n - G) + \gamma \cdot rac{900}{T + 273} \cdot u_2 (e_s - e_a)}{\Delta + \gamma (1 + 0.34 u_2)}")
+
 st.markdown("""
-Esta herramienta permite a los estudiantes simular la evapotranspiración de referencia (ETo) ajustando variables climáticas
-y geográficas dentro de rangos realistas.
-
----
-
-### 📘 Ecuación:
-
-$$
-\text{ETo} = \frac{0.408\Delta (R_n - G) + \gamma \cdot \frac{900}{T + 273} \cdot u_2 (e_s - e_a)}{\Delta + \gamma (1 + 0.34 u_2)}
-$$
-
-**Unidades**:  
+**Unidades**:
 - ETo: mm/día  
 - T: °C  
 - RH: %  
 - u₂: m/s  
 - P: kPa  
 - α (albedo): adimensional  
-""", unsafe_allow_html=True)
+""")
 
-T = st.slider("Temperatura media (°C)", -10.0, 50.0, 25.0)
-RH = st.slider("Humedad relativa (%)", 5.0, 100.0, 60.0)
-u2 = st.slider("Velocidad del viento (m/s)", 0.1, 10.0, 2.0)
-P = st.slider("Presión atmosférica (kPa)", 60.0, 110.0, 101.3)
+col1, col2 = st.columns([1, 2])
 
-cultivos = {
-    "Pasto corto (referencia)": 0.23,
-    "Maíz": 0.20,
-    "Arroz": 0.25,
-    "Caña de azúcar": 0.18,
-    "Trigo": 0.23,
-    "Superficie clara (arena/nieve)": 0.30,
-    "Superficie oscura (suelo húmedo)": 0.10
-}
-cultivo = st.selectbox("Superficie/cultivo", list(cultivos.keys()))
-albedo = cultivos[cultivo]
+with col1:
+    T = st.slider("Temperatura media (°C)", -10.0, 50.0, 25.0)
+    RH = st.slider("Humedad relativa (%)", 5.0, 100.0, 60.0)
+    u2 = st.slider("Velocidad del viento (m/s)", 0.1, 10.0, 2.0)
+    P = st.slider("Presión atmosférica (kPa)", 60.0, 110.0, 101.3)
 
-st.markdown("### Coordenadas y fecha")
-lat = st.number_input("Latitud (°)", -66.0, 66.0, 10.0)
-lon = st.number_input("Longitud (°)", -180.0, 180.0, -75.0)
-day_of_year = st.number_input("Día del año", 1, 365, 180)
+    cultivos = {
+        "Pasto corto (referencia)": 0.23,
+        "Maíz": 0.20,
+        "Arroz": 0.25,
+        "Caña de azúcar": 0.18,
+        "Trigo": 0.23,
+        "Superficie clara (arena/nieve)": 0.30,
+        "Superficie oscura (suelo húmedo)": 0.10
+    }
+    cultivo = st.selectbox("Superficie/cultivo", list(cultivos.keys()))
+    albedo = cultivos[cultivo]
 
-Ra = extraterrestrial_radiation(lat, day_of_year)
-Rs = 0.75 * Ra
-eto = eto_penman_monteith(T, RH, u2, Rs, P, albedo)
+    lat = st.number_input("Latitud (°)", -66.0, 66.0, 10.0)
 
-st.success(f"🌱 Evapotranspiración estimada: **{eto:.2f} mm/día**")
+with col2:
+    days = np.arange(1, 366)
+    Ra_series = [extraterrestrial_radiation(lat, d) for d in days]
+    Rs_series = [0.75 * Ra for Ra in Ra_series]
+    eto_series = [eto_penman_monteith(T, RH, u2, Rs, P, albedo) for Rs in Rs_series]
 
-temps = np.linspace(-10, 50, 100)
-etos = [eto_penman_monteith(temp, RH, u2, Rs, P, albedo) for temp in temps]
+    fig, ax = plt.subplots()
+    ax.plot(days, eto_series, label="ETo diaria (mm)")
+    ax.set_title("Variación de ETo durante el año")
+    ax.set_xlabel("Día del año")
+    ax.set_ylabel("ETo (mm/día)")
+    ax.grid(True)
+    ax.legend()
+    st.pyplot(fig)
 
-fig, ax = plt.subplots()
-ax.plot(temps, etos, label="ETo vs Temperatura")
-ax.axvline(T, color='red', linestyle='--', label=f"T = {T}°C")
-ax.set_xlabel("Temperatura (°C)")
-ax.set_ylabel("ETo (mm/día)")
-ax.set_title("ETo según variación de temperatura")
-ax.grid(True)
-ax.legend()
-st.pyplot(fig)
+    st.success(f"🌱 Valor promedio anual estimado de ETo: {np.mean(eto_series):.2f} mm/día")
